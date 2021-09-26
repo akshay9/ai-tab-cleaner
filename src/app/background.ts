@@ -56,6 +56,7 @@ browser.tabs.onRemoved.addListener(tabId => {
 async function extractDataForAllTabs () {
   let tabs = await browser.tabs.query({currentWindow: true})
 
+  // Populate values for tab.status === "unloaded"
   tabs.map((tab) => {
     q.push({request: {tab: tab}, sender:{ tab }})
   })
@@ -73,45 +74,43 @@ async function extractDataForAllTabs () {
   ).then(console.log.bind(this, "All Tabs"))
 }
 
-async function handleMessage(request, sender) {
+async function handleMessage(request, sender: chrome.runtime.MessageSender) {
   // This cache stores page load time for each tab, so they don't interfere
   console.log("received message: ", sender.tab.id);
+
+  let cacheState = await browser.storage.local.get('cache')
+  if (!cacheState.cache) cacheState.cache = {};
+
+  cacheState = handleTabData(cacheState, request, sender)
   
   if (typeof request.timing !== 'undefined') {
-    await handleTimingMessage(request, sender)
+    cacheState = handleTimingMessage(cacheState, request, sender)
   }
   if (typeof request.copy !== 'undefined') {
-    await handleCopyEvent(request, sender)
-  }
-  if (typeof request.tab !== 'undefined') {
-    await handleTabData(request, sender)
+    cacheState = handleCopyEvent(cacheState, request, sender)
   }
 
+  browser.storage.local.set(cacheState)
 }
 
-function handleTabData(request, sender) {
-  return browser.storage.local.get('cache').then(data => {
-    if (!data.cache) data.cache = {};
-    if (!data.cache['tab' + sender.tab.id]) data.cache['tab' + sender.tab.id] = {}
-    data.cache['tab' + sender.tab.id].tab = request.tab;
-    return browser.storage.local.set(data)
-  });
+function handleTabData(data, request, sender) {
+  if (!data.cache['tab' + sender.tab.id]) data.cache['tab' + sender.tab.id] = {}
+  console.log("tab content", JSON.parse(JSON.stringify(sender.tab)))
+  data.cache['tab' + sender.tab.id].tab = JSON.parse(JSON.stringify(sender.tab));
+  
+  return data
 }
 
-function handleTimingMessage(request, sender) {
-  return browser.storage.local.get('cache').then(data => {
-    if (!data.cache) data.cache = {};
-    if (!data.cache['tab' + sender.tab.id]) data.cache['tab' + sender.tab.id] = {}
-    data.cache['tab' + sender.tab.id] = {...data.cache['tab' + sender.tab.id], ...request.timing} ;
-    return browser.storage.local.set(data)
-  });
+function handleTimingMessage(data, request, sender) {
+  if (!data.cache['tab' + sender.tab.id]) data.cache['tab' + sender.tab.id] = {}
+  data.cache['tab' + sender.tab.id] = {...data.cache['tab' + sender.tab.id], ...request.timing} ;
+  
+  return data
 }
 
-function handleCopyEvent(request, sender) {
-  return browser.storage.local.get('cache').then(data => {
-    if (!data.cache) data.cache = {};
-    if (!data.cache['tab' + sender.tab.id]) data.cache['tab' + sender.tab.id] = {}
-    data.cache['tab' + sender.tab.id].copy = request.copy;
-    return browser.storage.local.set(data);
-  });
+function handleCopyEvent(data, request, sender) {
+  if (!data.cache['tab' + sender.tab.id]) data.cache['tab' + sender.tab.id] = {}
+  data.cache['tab' + sender.tab.id].copy = request.copy;
+  
+  return data
 }
