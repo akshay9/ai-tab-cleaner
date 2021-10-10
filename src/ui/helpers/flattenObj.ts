@@ -1,4 +1,4 @@
-export const flattenObj = (ob) => {
+export const flattenObj:any = (ob) => {
  
     // The object which contains the
     // final result

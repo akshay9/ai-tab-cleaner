@@ -16,8 +16,11 @@ import Stack from 'react-bootstrap/Stack';
 //Libraries
 import { flattenObj } from './helpers/flattenObj'
 import downloadObjectAsJson from './helpers/downloadObjectAsJson'
+import TabListItem from './components/TabListItem';
+import TabMessageType from '../types/TabMessageType';
 
-interface userInputType {
+
+export interface TabListItemType {
   id: number,
   rawData: any,
   value: string,
@@ -27,7 +30,7 @@ interface userInputType {
 
 interface TabListState {
   userInput: string,
-  list: Array<userInputType>
+  list: Array<TabListItemType>
 }
 
 class App extends React.Component {
@@ -38,69 +41,33 @@ class App extends React.Component {
 
     // Setting up state
     this.state = {
-    userInput : "",
-    list:[]
+      userInput : "",
+      list:[]
     }
 
+    this.classifyTabs = this.classifyTabs.bind(this)
     this.exportData = this.exportData.bind(this)
   }
 
   componentDidMount() {
-    browser.storage.local.get('cache')
+    browser.storage.local.get('liveTabs')
     .then(storage => {
-      const tabs = storage.cache
+      const tabs = storage.liveTabs
       let listItems = Object.keys(tabs).map(tabKey => {
         let tab = tabs[tabKey].tab
-        if (!tab) return false
+        if (!tab) return null
         return {
           id: tab.id,
           rawData: tabs[tabKey],
           value: tab.title || tabs[tabKey].title,
           faviconUrl: tab.favIconUrl,
           selected: false,
-        }
+        } as TabListItemType
       })
-
+      console.log("Sending message from browser")
+      chrome.runtime.sendMessage({message: "test"})
       this.setState({list: listItems})
     })
-  }
-
-  // Set a user input value
-  updateInput(value){
-    this.setState({
-    userInput: value,
-    });
-  }
-
-  // Add item if user input in not empty
-  addItem(){
-    if(this.state.userInput !== '' ){
-    const userInput = {
-
-      // Add a random id which is used to delete
-      id : Math.random(),
-
-      rawData: {},
-
-      // Add a user value to list
-      value : this.state.userInput,
-
-      faviconUrl: "",
-
-      // checkable
-      selected: false,
-    };
-
-    // Update list
-    const list = [...this.state.list];
-    list.push(userInput);
-
-    // reset state
-    this.setState({
-      list,
-      userInput:""
-    });
-    }
   }
 
   //Select tab
@@ -114,18 +81,13 @@ class App extends React.Component {
     });
   }
 
-  // Function to delete item from list use id to delete
-  deleteItem(key){
-    const list = [...this.state.list];
-
-    // Filter values and leave value which we need to delete
-    const updateList = list.filter(item => item.id !== key);
-
-    // Update list in state
-    this.setState({
-    list:updateList,
-    });
-
+  classifyTabs() {
+    chrome.runtime.sendMessage(
+      {type: 'classifyTabs', data: this.state.list} as TabMessageType, 
+      (response) => {
+        console.log(response)
+      }
+    )
   }
 
   exportData() {
@@ -136,15 +98,13 @@ class App extends React.Component {
       return outArray;
     })
 
-    downloadObjectAsJson(storageObj, "data.json")
-
-    
+    downloadObjectAsJson(storageObj, "data.json")    
   }
 
   render(){
-    return(<Container>
-
-      <Row style={{
+    return (
+      <Container>
+        <Row style={{
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
@@ -154,54 +114,35 @@ class App extends React.Component {
           >AI Tab Cleaner
         </Row>
 
-      <hr/>
-      <Row>
-      <Col md={{ span: 5, offset: 4 }}>
+        <hr/>
+        <Row>
+          <Col md={{ span: 2, offset: 4 }}>
+            <InputGroup className="mb-3">
+              <Button onClick={this.classifyTabs} variant="danger">Classify Tabs</Button>
+              <Button onClick={this.exportData} variant="success">Export</Button>
+            </InputGroup>
+          </Col>
+        </Row>
+        <Row>
+          <Col md={{ span: 5, offset: 4 }}>
+            <ListGroup>
+            {/* map over and print items */}
+            {this.state.list.map((item, index) => {return(
 
-      {/* <InputGroup className="mb-3">
-      <FormControl
-        placeholder="add item . . . "
-        size="lg"
-        value = {this.state.userInput}
-        onChange = {item => this.updateInput(item.target.value)}
-        aria-label="add something"
-        aria-describedby="basic-addon2"
-      />
-      <InputGroup.Append>
-        <Button
-        variant="dark"
-        size="lg"
-        onClick = {()=>this.addItem()}
-        >
-        ADD
-        </Button>
-      </InputGroup.Append>
-      </InputGroup> */}
-      <InputGroup className="mb-3">
-        <Button onClick={this.exportData} variant="success">Export</Button>
-      </InputGroup>
+              <ListGroup.Item key={index} variant={item.selected ? "dark":"light"} action
+              onClick = { () => this.selectItem(index) }>
+                <Stack direction="horizontal" gap={3} style={{width:350}}>
+                  <input type="checkbox" checked={item.selected} onChange={() => {}}/>
+                  <Image src={item.faviconUrl} rounded style={{width:25}} />
+                  <div className="tab-item">{item.value}</div>
+                </Stack>
+              </ListGroup.Item>
 
-    </Col>
-  </Row>
-  <Row>
-    <Col md={{ span: 5, offset: 4 }}>
-      <ListGroup>
-      {/* map over and print items */}
-      {this.state.list.map((item, index) => {return(
-
-        <ListGroup.Item key={index} variant={item.selected ? "dark":"light"} action
-        onClick = { () => this.selectItem(index) }>
-          <Stack direction="horizontal" gap={3}>
-            <Image src={item.faviconUrl} rounded style={{width:25}} />
-            {item.value}
-          </Stack>
-        </ListGroup.Item>
-
-      )})}
-      </ListGroup>
-    </Col>
-  </Row>
-    </Container>
+            )})}
+            </ListGroup>
+          </Col>
+        </Row>
+      </Container>
     );
   }
 }

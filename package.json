@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "webpack --watch --cache",
+    "build": "webpack"
   },
   "keywords": [],
   "author": "",
@@ -14,15 +16,18 @@
     "@types/react": "^16.7.8",
     "@types/react-dom": "^16.0.11",
     "css-loader": "^1.0.1",
+    "parallel-webpack": "^2.6.0",
     "style-loader": "^0.23.1",
     "ts-loader": "^5.3.1",
-    "typescript": "^3.1.6",
+    "typescript": "^3.9.10",
     "webpack": "^4.26.1",
     "webpack-cli": "^3.1.2"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^3.9.0",
     "async": "^3.2.1",
     "bootstrap": "^5.1.1",
+    "danfojs": "^0.3.2",
     "react": "^16.6.3",
     "react-bootstrap": "^2.0.0",
     "react-dom": "^16.6.3",
