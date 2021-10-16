@@ -46,7 +46,9 @@ class App extends React.Component {
     }
 
     this.classifyTabs = this.classifyTabs.bind(this)
+    this.trainTabs = this.trainTabs.bind(this)
     this.exportData = this.exportData.bind(this)
+    this.resetData = this.resetData.bind(this)
   }
 
   componentDidMount() {
@@ -64,11 +66,14 @@ class App extends React.Component {
           selected: false,
         } as TabListItemType
       })
-      console.log("Sending message from browser")
-      chrome.runtime.sendMessage({message: "test"})
+      listItems.sort((a, b) => a.rawData.tab.index - b.rawData.tab.index)
+
       this.setState({list: listItems})
+      this.classifyTabs(listItems)
     })
   }
+
+  _identifyTabs
 
   //Select tab
   selectItem(key) {
@@ -81,9 +86,27 @@ class App extends React.Component {
     });
   }
 
-  classifyTabs() {
+  classifyTabs(tabsList) {
     chrome.runtime.sendMessage(
-      {type: 'classifyTabs', data: this.state.list} as TabMessageType, 
+      {type: 'classifyTabs', data: tabsList} as TabMessageType, 
+      (closeList) => {
+        console.log(closeList, closeList.array, closeList.values, closeList.data)
+        const tabList = this.state.list
+        for (let i = 0; i < tabList.length; i++) {
+          const tab = tabList[i];
+          const close = closeList[i];
+          tabList[i].selected = close > 0.4
+        }
+
+        this.setState({list: tabList})
+        console.log(closeList)
+      }
+    )
+  }
+
+  trainTabs() {
+    chrome.runtime.sendMessage(
+      {type: 'trainTabs', data: this.state.list} as TabMessageType, 
       (response) => {
         console.log(response)
       }
@@ -98,7 +121,16 @@ class App extends React.Component {
       return outArray;
     })
 
-    downloadObjectAsJson(storageObj, "data.json")    
+    downloadObjectAsJson(storageObj, "data")    
+  }
+
+  resetData() {
+    chrome.runtime.sendMessage(
+      {type: 'resetTabs'} as TabMessageType,
+      (response) => {
+        console.log(response)
+      }
+    )
   }
 
   render(){
@@ -118,8 +150,9 @@ class App extends React.Component {
         <Row>
           <Col md={{ span: 2, offset: 4 }}>
             <InputGroup className="mb-3">
-              <Button onClick={this.classifyTabs} variant="danger">Classify Tabs</Button>
+              <Button onClick={this.trainTabs} variant="danger">Train Tabs</Button>
               <Button onClick={this.exportData} variant="success">Export</Button>
+              <Button onClick={this.resetData} variant="warning">Reset</Button>
             </InputGroup>
           </Col>
         </Row>

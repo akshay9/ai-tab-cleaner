@@ -3,23 +3,22 @@ import async from 'async'
 import { Series } from "danfojs/dist/index"
 import TabClassifer from '../ml/TabClassifier'
 import TabMessageType from '../types/TabMessageType'
+import { closedTabStore, liveTabStore } from './constants'
+import { handleCopyEvent, handleTabData, handleTimingMessage } from './contentActions/actions'
 
-browser.browserAction = browser.browserAction || browser.action
-
-const liveTabStore = 'liveTabs'
-const closedTabStore = 'closedTabs'
-const autoClosedStore = 'autoClosedStore'
-const changedOnCloseStore = 'changedOnCloseStore'
+// browser.browserAction = browser.browserAction || browser.action
 
 const tabClassifer = new TabClassifer();
 
-var q = async.queue(function({request, sender, sendResponse}, callback) {
-  handleMessage(request, sender, sendResponse).then(() => callback())
+const queue = async.queue(({requestMessage, sender}, callback) => {
+  handleMessage(requestMessage, sender).then(() => callback())
 }, 1);
 
-q.drain(() => {
-  chrome.storage.local.get(liveTabStore, console.log.bind(this, "chrome"))
+queue.drain(() => {
+  browser.storage.local.get(liveTabStore).then(console.log.bind(this, "chrome"))
 })
+
+// Browser events
 
 browser.runtime.onInstalled.addListener(() => {
   browser.storage.local.set({ cache: {} })
@@ -30,32 +29,34 @@ browser.runtime.onStartup.addListener(() => {
   extractDataForAllTabs()
 })
 
-browser.runtime.onMessage.addListener((requestMessage, sender: chrome.runtime.MessageSender, sendResponse: Function) => {
-  if (sender.url == chrome.runtime.getURL('popup.html')) {
-    handleTabMessage(requestMessage, sender, sendResponse)
+browser.runtime.onMessage.addListener((requestMessage, sender: browser.Runtime.MessageSender) => {
+  if (sender.url === browser.runtime.getURL('popup.html')) {
+    return handleTabMessage(requestMessage, sender)
   } else {
-    q.push({requestMessage, sender, sendResponse})
+    queue.push({requestMessage, sender})
   }
 });
 
-// cache eviction
 browser.tabs.onRemoved.addListener(async tabId => {
-  const closedStore = await initialiseStore(closedTabStore) 
-  browser.storage.local.get(liveTabStore).then(data => {
-    if (data[liveTabStore]) {
-      closedStore['tab' + tabId] = data[liveTabStore]['tab' + tabId] 
-      delete data[liveTabStore]['tab' + tabId];
-    }
-    browser.storage.local.set(data);
-  });
+  const closedStore = await initialiseStore(closedTabStore, []);
+  const tabStore = await initialiseStore(liveTabStore);
+  
+  if (tabStore['tab' + tabId]) {
+    closedStore[closedTabStore].push({...tabStore['tab' + tabId], ...{close: 1, end: Date.now()}})
+    delete tabStore['tab' + tabId];
+  }
+
+  browser.storage.local.set(tabStore);
+  browser.storage.local.set(closedStore);
 });
 
 async function extractDataForAllTabs () {
-  let tabs = await browser.tabs.query({currentWindow: true})
+  browser.storage.local.set({[liveTabStore]: {}})
+  let tabs = await browser.tabs.query({})
 
   // Populate values for tab.status === "unloaded"
   tabs.map((tab) => {
-    q.push({request: {tab: tab}, sender:{ tab }})
+    queue.push({type: "tabData",request: {tab: tab}, sender:{ tab }})
   })
 
   let ret = Promise.allSettled(
@@ -71,71 +72,50 @@ async function extractDataForAllTabs () {
   ).then(console.log.bind(this, "All Tabs"))
 }
 
-function handleTabMessage(message: TabMessageType, sender: chrome.runtime.MessageSender, sendResponse: Function) {
+async function handleTabMessage(message, sender: browser.Runtime.MessageSender) {
   let res:any = 'response'
-  if (message.type == "classifyTabs"){
-    tabClassifer.preproccess(message.data)
+  if (message.type === "trainTabs"){
+    let data = tabClassifer.preproccess(message.data)
+    return tabClassifer.train(data)
+  }
+  if (message.type === 'resetTabs') { 
+    extractDataForAllTabs()
+  }
+  if (message.type === 'classifyTabs') { 
+    let {X, y} = tabClassifer.preproccess(message.data)
+    return tabClassifer.predict(X)
   }
   
-  sendResponse(res)
+  return res
 }
 
-async function handleMessage(message, sender: chrome.runtime.MessageSender, sendResponse: Function) {
-  // This cache stores page load time for each tab, so they don't interfere
-  // console.log("received message: ", sender.tab.id);
+async function handleMessage(message, sender: browser.Runtime.MessageSender) {
+  if (!message) return;
   
-  let cacheState = await initialiseStore(liveTabStore);
+  let tabState = await initialiseStore(liveTabStore);
   // await initialiseStore(closedTabStore)
   // await initialiseStore(autoClosedStore)
   // await initialiseStore(changedOnCloseStore)
 
-  console.log("Sender message", chrome.runtime.getURL(''), sender)
-  return
+  let reducers = [handleTabData, handleTimingMessage, handleCopyEvent]
 
-  cacheState = handleTabData(cacheState, message, sender)
-  
-  if (typeof message.timing !== 'undefined') {
-    cacheState = handleTimingMessage(cacheState, message, sender)
-  }
-  if (typeof message.copy !== 'undefined') {
-    cacheState = handleCopyEvent(cacheState, message, sender)
-  }
+  let finalTabState = reducers.reduce((tabStateData, reducerFn, id) => {
+    return reducerFn(tabStateData, message, sender)
+    }, tabState)
 
-  browser.storage.local.set(cacheState)
+  browser.storage.local.set(finalTabState)
 }
 
-async function initialiseStore(storeName, commit=false) {
+async function initialiseStore(storeName, defaultValue={}, commit=false) {
   let cacheState = await browser.storage.local.get(storeName)
-  if (!cacheState[storeName]) {
-    cacheState[storeName] = {};
 
-    if (commit) {
-      await browser.storage.local.set(cacheState)
-    }
+  if (!cacheState[storeName]) {
+    cacheState[storeName] = defaultValue;
   }
-  
+
+  if (commit) {
+    await browser.storage.local.set(cacheState)
+  }
 
   return cacheState
-}
-
-function handleTabData(data, request, sender) {
-  if (!data[liveTabStore]['tab' + sender.tab.id]) data[liveTabStore]['tab' + sender.tab.id] = {}
-  console.log("tab content", JSON.parse(JSON.stringify(sender.tab)))
-  data[liveTabStore]['tab' + sender.tab.id].tab = JSON.parse(JSON.stringify(sender.tab));
-  
-  return data
-}
-
-function handleTimingMessage(data, request, sender) {
-  if (!data[liveTabStore]['tab' + sender.tab.id]) data[liveTabStore]['tab' + sender.tab.id] = {}
-  data[liveTabStore]['tab' + sender.tab.id] = {...data[liveTabStore]['tab' + sender.tab.id], ...request.timing} ;
-  
-  return data
-}
-
-function handleCopyEvent(data, request, sender) {
-  if (!data[liveTabStore]['tab' + sender.tab.id]) data[liveTabStore]['tab' + sender.tab.id] = {}
-  data[liveTabStore]['tab' + sender.tab.id].copy = request.copy;
-  
-  return data
 }

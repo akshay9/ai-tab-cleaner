@@ -18,7 +18,7 @@ interface timingType {
     }
   
     document.addEventListener('copy', (event) => {
-        var promise = browser.runtime.sendMessage({copy: true});
+        var promise = browser.runtime.sendMessage({type: "copyData", copy: 1});
         promise.catch((reason) => console.log(reason));
     })
 
@@ -39,7 +39,8 @@ interface timingType {
         var duration = timing.duration / 1000;
         var precision = (duration >= 100) ? 0 : (duration >= 10 ? 1 : 2);
         var time = duration.toFixed(precision).substring(0, 4);
-        var promise = browser.runtime.sendMessage({time: time, timing: timing, copy: false});
+        console.log({type: "timingData", time: time, timing: timing, copy: 0})
+        var promise = browser.runtime.sendMessage({type: "timingData", time: time, timing: timing, copy: 0})
         promise.catch((reason) => console.log(reason));
       } else {
         setTimeout(startCollect, 100);

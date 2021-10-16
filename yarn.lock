@@ -228,6 +228,11 @@
   resolved "https://registry.yarnpkg.com/@types/warning/-/warning-3.0.0.tgz#0d2501268ad8f9962b740d387c4654f5f8e23e52"
   integrity sha1-DSUBJorY+ZYrdA04fEZU9fjiPlI=
 
+"@types/webextension-polyfill@^0.8.0":
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/@types/webextension-polyfill/-/webextension-polyfill-0.8.0.tgz#6c40740eec531de412f6ceba27bb2cad4a24907c"
+  integrity sha512-usmQx2snpNkVl2VoOGZCdrPnfHL+CjuSFy84ZdTwQ2b2cvyygF/zGW5YI6Zywk+bfq9zmYpORO9lmdN7DknpRw==
+
 "@types/webgl-ext@0.0.30":
   version "0.0.30"
   resolved "https://registry.yarnpkg.com/@types/webgl-ext/-/webgl-ext-0.0.30.tgz#0ce498c16a41a23d15289e0b844d945b25f0fb9d"
@@ -1269,10 +1274,10 @@ cyclist@^1.0.1:
   resolved "https://registry.yarnpkg.com/cyclist/-/cyclist-1.0.1.tgz#596e9698fd0c80e12038c2b82d6eb1b35b6224d9"
   integrity sha1-WW6WmP0MgOEgOMK4LW6xs1tiJNk=
 
-danfojs@^0.3.2:
-  version "0.3.2"
-  resolved "https://registry.yarnpkg.com/danfojs/-/danfojs-0.3.2.tgz#e6623b81b7f857e1ce89d8ce5ce3cc0e8c8c92b2"
-  integrity sha512-6XyPXiNXrqJA4xEMVEcgQVwmdUjF+qu/K03PcWfhFsM5qmaUrjUR1WmmG7YjaplKACrUgmPQD8vPzD4tTXUxvw==
+danfojs@^0.3.3:
+  version "0.3.3"
+  resolved "https://registry.yarnpkg.com/danfojs/-/danfojs-0.3.3.tgz#5b9addcff5a5cc7b74a7e05a37b585a687f8c5d0"
+  integrity sha512-3hbVN2QBYACLLe55yTKKJCA+sYvuWMlf+w9/pF0oBxD+7vgyd7+NRBEaxCPGLhMP7PEUu1mRyo4PeDwcC90TCQ==
   dependencies:
     "@tensorflow/tfjs" "^3.9.0"
     mathjs "9.4.4"

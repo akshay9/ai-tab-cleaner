@@ -3,76 +3,46 @@ import { flattenObj } from "../ui/helpers/flattenObj";
 import DNNModel from "./DNNModel";
 import ModelType from "./ModelType";
 import { DataFrame } from "danfojs/dist/index"
+import { bool_to_int, calculate_tab_life, contains_google, contains_search, is_edge_domain, is_tab_complete, is_tab_loading, is_tab_unloaded } from "./reducers";
 
-
-function contains_word (ser, term='search') {
-  let pat = new RegExp("(^|\\W)+" + term + "\\W*", "i")
-
-  for (let i = 0; i < ser.length; i++) {
-    const str = ser[i];
-    if ((str + '').match(pat) != null) return 1
-  }
-
-  return 0
-    
-  for (let col in ser) {
-      let txt = ser[col]
-      let pat = new RegExp("(^|\W)+" + term + "\W*")
-      return txt.match(pat).length
-  }
-  return 0
-}
-
-function contains_search(ser) {
-  return contains_word(ser, 'search')
-}
-
-function contains_google(ser) {
-  return contains_word(ser, 'google')
-}
-
-function is_grouped(ser){
-    return (!contains_word(ser, '-1'))
-}
-
-function is_edge_domain(ser) {
-    return contains_word(ser, 'edge://')  // since \W+ doesnt match start of the string
-}
-
-function is_tab_loading(ser) {
-    return contains_word(ser, 'loading')
-}
-
-function is_tab_complete(ser) {
-    return contains_word(ser, 'complete')
-}
-
-function is_tab_unloaded(ser) {
-    return contains_word(ser, 'unloaded')
-}
 
 class TabClassifer {
   dataset: any
   classifier: ModelType
 
   constructor() {
-    // this.dataset = this.preproccess(dataset);
-    this.classifier = new DNNModel()
+    this.classifier = new DNNModel(12)
   }
 
   preproccess(data: Array<TabListItemType>) {
-    const flattenData = data.map(row => flattenObj({...row.rawData, close: row.selected}))
-
-    const df = new DataFrame(flattenData)
-    
-    const cdf = df.loc({columns: ['copy', 'counters.encodedBodySize', 'counters.fetchStart', 'counters.name', 
+    let flattenData = data.map(row => flattenObj({...row.rawData, close: row.selected}))
+    let COLUMNS = ['copy', 'counters.encodedBodySize', 'counters.fetchStart', 'counters.name', 
     'counters.redirectCount', 'counters.startTime', 'duration', 
     'referrer', 'start', 'tab.active', 'tab.pinned','tab.audible', 'tab.discarded', 
-    'tab.favIconUrl', 'tab.groupId', 'tab.windowId', 'tab.highlighted', 'tab.incognito','tab.id', 'tab.index', 
-    'tab.selected', 'tab.status', 'tab.title', 'tab.url', 'name', 'title', 'close']})
+    'tab.favIconUrl', 'tab.groupId', 'tab.windowId', 'tab.highlighted', 'tab.incognito','tab.id',
+    'tab.index', 'tab.selected', 'tab.status', 'tab.title', 'tab.url', 'name', 'title', 'close']
+    
+    flattenData = flattenData.map(row => {
+      let newObj = {}
+      for (const key in row) {
+        if (COLUMNS.includes(key)) {
+          newObj[key] = row[key];
+        } else {
+          newObj[key] = null;
+        }
+      }
+      return newObj
+    })
 
-    let fdf = cdf.loc({columns: ['copy', 'tab.active', 'tab.pinned']})
+    console.log(flattenData)
 
+    const df = new DataFrame(flattenData)
+    const cdf = df.loc({columns: COLUMNS})
+
+    let  fdf: DataFrame = cdf.loc({columns: ['copy', 'tab.active', 'tab.discarded', 'tab.audible', 'tab.pinned']})
+
+    fdf.addColumn({ "column": 'tabLife', "values": cdf.loc({columns: ['start']}).apply(calculate_tab_life, { axis:0 }), inplace: true  })
+    
     fdf.addColumn({ "column": 'domain.cat.search', "values": cdf.loc({columns: ['name', 'title']}).apply(contains_search, { axis:0 }), inplace: true  })
     fdf.addColumn({ "column": 'domain.cat.edge', "values": cdf.loc({columns: ['name', 'tab.url']}).apply(is_edge_domain, { axis:0 }), inplace: true  })
     fdf.addColumn({ "column": 'ref.cat.search', "values": cdf.loc({columns: ['referrer']}).apply(contains_google, { axis:0 }), inplace: true  })
@@ -81,18 +51,25 @@ class TabClassifer {
     fdf.addColumn({ "column": 'tab.status.cat.loading', "values": cdf.loc({columns: ['tab.status']}).apply(is_tab_loading, { axis:0 }), inplace: true  })
     fdf.addColumn({ "column": 'tab.status.cat.complete', "values": cdf.loc({columns: ['tab.status']}).apply(is_tab_complete, { axis:0 }), inplace: true  })
     fdf.addColumn({ "column": 'tab.status.cat.unloaded', "values": cdf.loc({columns: ['tab.status']}).apply(is_tab_unloaded, { axis:0 }), inplace: true  })
-    console.log("fdff", fdf, cdf)
-    fdf = fdf.fillna(fdf.median())
-    cdf['close'] = cdf['close'].fillna(0)
 
-    console.log("fdf", fdf)
+    fdf.fillna(fdf.median().values, {columns: fdf.columns,inplace: true})
+    cdf.fillna([0], {columns:['close'], inplace: true})
 
-    // let s = new dfd.Series([1, 3, 5, undefined, 6, 8], {})
-    // console.log("Series", s)
+    fdf = fdf.apply(bool_to_int, {axis: 0}) as DataFrame
+
+    return {X: fdf.values, y: df['close'].values}
   }
 
-  predict() {
-    
+  train({X, y}) {
+    return this.classifier.train(X, y)
+  }
+
+  predict(X) {
+    return this.classifier.predict(X)
+  }
+
+  reset() {
+    this.classifier.reset();
   }
 }
 

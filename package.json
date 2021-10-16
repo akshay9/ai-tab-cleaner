@@ -25,9 +25,10 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^3.9.0",
+    "@types/webextension-polyfill": "^0.8.0",
     "async": "^3.2.1",
     "bootstrap": "^5.1.1",
-    "danfojs": "^0.3.2",
+    "danfojs": "^0.3.3",
     "react": "^16.6.3",
     "react-bootstrap": "^2.0.0",
     "react-dom": "^16.6.3",

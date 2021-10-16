@@ -2,7 +2,7 @@ interface ModelType {
   train: Function,
   predict: Function,
   score: Function,
-  save: Function,
+  reset: Function,
 }
 
 export default ModelType;

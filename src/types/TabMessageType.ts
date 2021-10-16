@@ -1,6 +1,6 @@
 interface TabMessageType {
-  type: "classifyTabs",
-  data: any
+  type: string,
+  data?: any
 }
 
 export default TabMessageType
